@@ -11,8 +11,9 @@
 ".\obj\stm32f10x_tim.o"
 ".\obj\stm32f10x_usart.o"
 ".\obj\stm32f10x_gpio.o"
+".\obj\stm32f10x_exti.o"
 ".\obj\readme.o"
---strict --scatter ".\OBJ\test.sct"
+--strict --scatter ".\OBJ\baymax.sct"
 --summary_stderr --info summarysizes --map --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers
---list ".\List\test.map" -o .\OBJ\test.axf
+--list ".\List\baymax.map" -o .\OBJ\baymax.axf

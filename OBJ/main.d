@@ -13,8 +13,9 @@
 .\obj\main.o: .\Source\STM32F10x_StdPeriph_Driver\inc\stm32f10x_usart.h
 .\obj\main.o: .\Source\STM32F10x_StdPeriph_Driver\inc\misc.h
 .\obj\main.o: Source\User\Main\hardware.h
+.\obj\main.o: .\Source\STM32F10x_StdPeriph_Driver\inc\stm32f10x_tim.h
+.\obj\main.o: .\Source\STM32F10x_StdPeriph_Driver\inc\stm32f10x_exti.h
 .\obj\main.o: .\Source\User\Usart\usart.h
 .\obj\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
 .\obj\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
 .\obj\main.o: .\Source\User\Motor\motor.h
-.\obj\main.o: .\Source\STM32F10x_StdPeriph_Driver\inc\stm32f10x_tim.h

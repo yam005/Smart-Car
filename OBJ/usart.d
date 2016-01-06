@@ -13,6 +13,8 @@
 .\obj\usart.o: .\Source\STM32F10x_StdPeriph_Driver\inc\stm32f10x_usart.h
 .\obj\usart.o: .\Source\STM32F10x_StdPeriph_Driver\inc\misc.h
 .\obj\usart.o: .\Source\User\Main\hardware.h
+.\obj\usart.o: .\Source\STM32F10x_StdPeriph_Driver\inc\stm32f10x_tim.h
+.\obj\usart.o: .\Source\STM32F10x_StdPeriph_Driver\inc\stm32f10x_exti.h
 .\obj\usart.o: Source\User\Usart\usart.h
 .\obj\usart.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
 .\obj\usart.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h

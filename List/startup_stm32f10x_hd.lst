@@ -592,11 +592,11 @@ ARM Macro Assembler    Page 10
               00000000 
 Command Line: --debug --xref --diag_suppress=9931 --cpu=Cortex-M3 --apcs=interw
 ork --depend=.\obj\startup_stm32f10x_hd.d -o.\obj\startup_stm32f10x_hd.o -IF:\K
-eil\SerPort_BT\RTE -IC:\Keil_v5\ARM\PACK\ARM\CMSIS\4.5.0\CMSIS\Include -IC:\Kei
-l_v5\ARM\PACK\Keil\STM32F1xx_DFP\2.0.0\Device\Include --predefine="__UVISION_VE
-RSION SETA 517" --predefine="_RTE_ SETA 1" --predefine="STM32F10X_HD SETA 1" --
-list=.\list\startup_stm32f10x_hd.lst Source\CMSIS\Core\CM3\startup\arm\startup_
-stm32f10x_hd.s
+eil\Smart-Car-Modify\RTE -IC:\Keil_v5\ARM\PACK\ARM\CMSIS\4.5.0\CMSIS\Include -I
+C:\Keil_v5\ARM\PACK\Keil\STM32F1xx_DFP\2.0.0\Device\Include --predefine="__UVIS
+ION_VERSION SETA 517" --predefine="_RTE_ SETA 1" --predefine="STM32F10X_HD SETA
+ 1" --list=.\list\startup_stm32f10x_hd.lst Source\CMSIS\Core\CM3\startup\arm\st
+artup_stm32f10x_hd.s
 
 
 

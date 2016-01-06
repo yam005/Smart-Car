@@ -2,7 +2,6 @@
 #include "usually.h"
 #include "usart.h"
 #include "motor.h"
-#include "stm32f10x_tim.h"
 
 uint16_t Dutyfactor = 0; 		//占空比参数    最大7200
 #define  Dutyfactor1  7200	//占空比为100%	输出高电平	  LED最亮
@@ -17,6 +16,10 @@ extern uint8_t rx_flag_rec;
 extern uint8_t rx_flag;  
 extern uint8_t rx_i;
 extern uint8_t rx_dat;
+uint16_t left_front_cnt=0;
+uint16_t right_front_cnt=0;
+uint16_t left_back_cnt=0;
+uint16_t right_back_cnt=0;
 
 const char menu[] =
    "\n\r"
@@ -35,6 +38,7 @@ void Init_TIMER(void);
 void Init_PWM(uint16_t Dutyfactor);
 void Delay_Ms(uint16_t time);  
 void Delay_Us(uint16_t time); 
+char valueToHexCh(uint8_t value);
 /*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 ** 函数名称: main
 ** 功能描述: 主函数入口
@@ -44,6 +48,8 @@ void Delay_Us(uint16_t time);
 :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::*/	
 int main(void)
 {
+	char wheel_cnt[9]="\0";
+	uint16_t temp;
 	SystemInit();					//系统时钟配置
 	Init_NVIC();					//中断向量表注册函数
 	Init_GPIO();					//各个外设引脚配置
@@ -86,10 +92,26 @@ int main(void)
 				USART_Send_Str(str4);
 				Stop();
 				break;
+			case 'P':
+				USART_Send_Str(wheel_cnt);
+				break;
 			default:
 				break;
 			} 			
 		}
+		wheel_cnt[8] = '\n';
+		temp = right_back_cnt;
+		wheel_cnt[7] = valueToHexCh(temp & 0x0F);;
+		wheel_cnt[6] = valueToHexCh(temp >> 4);;
+		temp = left_back_cnt;
+		wheel_cnt[5] = valueToHexCh(temp & 0x0F);;
+		wheel_cnt[4] = valueToHexCh(temp >> 4);;
+		temp = right_front_cnt;
+		wheel_cnt[3] = valueToHexCh(temp & 0x0F);;
+		wheel_cnt[2] = valueToHexCh(temp >> 4);;
+		temp = left_front_cnt;
+		wheel_cnt[1] = valueToHexCh(temp & 0x0F);
+		wheel_cnt[0] = valueToHexCh(temp >> 4);
 	}
 }
 /*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -102,6 +124,7 @@ int main(void)
 void Init_GPIO(void)
 {
 	GPIO_InitTypeDef GPIO_InitStructure;					//定义一个GPIO结构体变量
+	EXTI_InitTypeDef EXTI_InitStructure;
 
 	//使能各个端口时钟，重要！！！
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_GPIOB \
@@ -110,41 +133,58 @@ void Init_GPIO(void)
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;	//通用输出推挽
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;	//配置端口速度为50M
 	
-	GPIO_InitStructure.GPIO_Pin = 0x0B;		//配置GPIOA端口
+	GPIO_InitStructure.GPIO_Pin = 0x0B;		//配置GPIOA端口PA0/1/3
 	GPIO_Init(GPIOA, &GPIO_InitStructure);		//根据参数初始化GPIOA寄存器
-	GPIO_InitStructure.GPIO_Pin = 0x07;		//配置GPIOB端口
+	GPIO_InitStructure.GPIO_Pin = 0x07;		//配置GPIOB端口PB0/1/2
 	GPIO_Init(GPIOB, &GPIO_InitStructure);		//根据参数初始化GPIOB寄存器
-	GPIO_InitStructure.GPIO_Pin = 0x04;		//配置GPIOC端口
+	GPIO_InitStructure.GPIO_Pin = 0x04;		//配置GPIOC端口PC2
 	GPIO_Init(GPIOC, &GPIO_InitStructure);		//根据参数初始化GPIOC寄存器
-	GPIO_InitStructure.GPIO_Pin = 0x800;		//配置GPIOF端口
+	GPIO_InitStructure.GPIO_Pin = 0x800;		//配置GPIOF端口PF11
 	GPIO_Init(GPIOF, &GPIO_InitStructure);		//根据参数初始化GPIOF寄存器
 	
 	GPIO_InitStructure.GPIO_Pin = 0x04;		//配置LED端口为PA2
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;	//复用功能输出推挽
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;	//配置端口速度为50M
 	GPIO_Init(GPIOA, &GPIO_InitStructure);//将端口GPIOA进行初始化配置
-	//GPIO_PinRemapConfig(GPIO_PartialRemap1_TIM2,ENABLE);//将定时器TIM2_CH3重映射到PA2引脚
+	
+	GPIO_InitStructure.GPIO_Pin = 0x0F;  //configure GPIO PF0/1/2/3
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;  //pull up input
+	GPIO_Init(GPIOF, &GPIO_InitStructure);  //PF0/1/2/3
+	
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOF, GPIO_PinSource0);
+	EXTI_InitStructure.EXTI_Line = EXTI_Line0;  
+	EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
+	EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling; 
+	EXTI_InitStructure.EXTI_LineCmd = ENABLE; 
+	EXTI_Init(&EXTI_InitStructure); 
+	
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOF, GPIO_PinSource1);
+	EXTI_InitStructure.EXTI_Line = EXTI_Line1;  
+	EXTI_Init(&EXTI_InitStructure); 
+	
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOF, GPIO_PinSource2);
+	EXTI_InitStructure.EXTI_Line = EXTI_Line2;  
+	EXTI_Init(&EXTI_InitStructure);
+	
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOF, GPIO_PinSource3);
+	EXTI_InitStructure.EXTI_Line = EXTI_Line3;  
+	EXTI_Init(&EXTI_InitStructure);
 }
-
 /*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 ** 函数名称: Init_NVIC
 ** 功能描述: 系统中断配置
 ** 参数描述：无
-** 作  　者: Dream
-** 日　  期: 2011年5月14日
+** 作  　者: Cary
+** 日　  期: 2016年1月5日
 :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::*/
 void Init_NVIC(void)
 { 	
-  	NVIC_InitTypeDef NVIC_InitStructure;			//定义一个NVIC向量表结构体变量
-
+  NVIC_InitTypeDef NVIC_InitStructure;			//定义一个NVIC向量表结构体变量
 	#ifdef  VECT_TAB_RAM  							//向量表基地址选择
-
-	  NVIC_SetVectorTable(NVIC_VectTab_RAM, 0x0);  	//将0x20000000地址作为向量表基地址(RAM)
+	NVIC_SetVectorTable(NVIC_VectTab_RAM, 0x0);  	//将0x20000000地址作为向量表基地址(RAM)
 	#else  
-
-	  NVIC_SetVectorTable(NVIC_VectTab_FLASH, 0x0); //将0x08000000地址作为向量表基地址(FLASH)  
+	NVIC_SetVectorTable(NVIC_VectTab_FLASH, 0x0); //将0x08000000地址作为向量表基地址(FLASH)  
 	#endif
-
 	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);	//设置中断组为2 
 
 	NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;			//配置串口1为中断源
@@ -152,6 +192,83 @@ void Init_NVIC(void)
 	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;		  	//设置副优先级为0
 	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;			  	//使能串口1中断
 	NVIC_Init(&NVIC_InitStructure);							  	//根据参数初始化中断寄存器
+	
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 3; 	//设置占先优先级为3
+	NVIC_InitStructure.NVIC_IRQChannel = EXTI0_IRQn;			//配置EXTI0为中断源
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 2;		  	//设置副优先级为2
+	NVIC_Init(&NVIC_InitStructure);	 //根据参数初始化中断寄存器
+	
+	NVIC_InitStructure.NVIC_IRQChannel = EXTI1_IRQn;			//配置EXTI1为中断源
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 2;		  	//设置副优先级为2
+	NVIC_Init(&NVIC_InitStructure);	 //根据参数初始化中断寄存器
+	
+	NVIC_InitStructure.NVIC_IRQChannel = EXTI2_IRQn;			//配置EXTI2为中断源
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 2;		  	//设置副优先级为2
+	NVIC_Init(&NVIC_InitStructure);	 //根据参数初始化中断寄存器
+	
+	NVIC_InitStructure.NVIC_IRQChannel = EXTI3_IRQn;			//配置EXTI3为中断源
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 2;		  	//设置副优先级为2
+	NVIC_Init(&NVIC_InitStructure);	 //根据参数初始化中断寄存器
+}
+/*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+** 函数名称: EXTI0_IRQHandler
+** 功能描述: EXTI0中断响应，右后轮计步
+** 参数描述：无
+** 作  　者: Cary
+** 日　  期: 2016年1月5日
+:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::*/
+void EXTI0_IRQHandler(void)
+{
+   if(EXTI_GetITStatus(EXTI_Line0) != RESET)
+   {
+     EXTI_ClearITPendingBit(EXTI_Line0);
+		 right_back_cnt++;
+   }
+}
+/*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+** 函数名称: EXTI1_IRQHandler
+** 功能描述: EXTI1中断响应，左后轮计步
+** 参数描述：无
+** 作  　者: Cary
+** 日　  期: 2016年1月5日
+:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::*/
+void EXTI1_IRQHandler(void)
+{
+   if(EXTI_GetITStatus(EXTI_Line1) != RESET)
+   {
+     EXTI_ClearITPendingBit(EXTI_Line1);
+		 left_back_cnt++;
+   }
+}
+/*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+** 函数名称: EXTI2_IRQHandler
+** 功能描述: EXTI2中断响应，右前轮计步
+** 参数描述：无
+** 作  　者: Cary
+** 日　  期: 2016年1月5日
+:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::*/
+void EXTI2_IRQHandler(void)
+{
+   if(EXTI_GetITStatus(EXTI_Line2) != RESET)
+   {
+     EXTI_ClearITPendingBit(EXTI_Line2);
+		 right_front_cnt++;
+   }
+}
+/*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+** 函数名称: EXTI3_IRQHandler
+** 功能描述: EXTI3中断响应，左前轮计步
+** 参数描述：无
+** 作  　者: Cary
+** 日　  期: 2016年1月5日
+:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::*/
+void EXTI3_IRQHandler(void)
+{
+   if(EXTI_GetITStatus(EXTI_Line3) != RESET)
+   {
+     EXTI_ClearITPendingBit(EXTI_Line3);
+		 left_front_cnt++;
+   }
 }
 /*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 ** 函数名称: TIMER_Init
@@ -234,6 +351,25 @@ void Delay_Us(uint16_t time)  //延时函数
 	uint16_t i,j;
 	for(i=0;i<time;i++)
   		for(j=0;j<9;j++);
+}
+/*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+** 函数名称: valueToHexCh
+** 功能描述: translate uint8_t to Hex char
+** 参数描述：the value to be translated			 
+** 作  　者: Cary
+** 日　  期: 2016年1月6日
+:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::*/
+char valueToHexCh(uint8_t value)
+{
+  char result = '\0';
+  if(value <= 9){
+    result = (char)(value + 48); //48 is the ASCII code of '0'
+  }
+  else if(value >= 10 && value <= 15){
+    result = (char)(value - 10 + 65); // 65 is the ASCII code of 'A'
+  }
+
+  return result;
 }
 /*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 End:-D:-D:-D:-D:-D:-D:-D:-D:-D:-D:-D:-D:-D:-D:-D:-D:-D:-D:-D:-D
