@@ -18,6 +18,15 @@ uint16_t left_back_cnt=0;
 uint16_t right_back_cnt=0;
 uint16_t Dutyfactor = 0; 		//占空比参数    最大7200
 
+//global variables for ultrasonic
+uint16_t IC3ReadValue1;
+uint16_t IC3ReadValue2;
+uint16_t Capture3;
+uint16_t Capture2;
+uint8_t CaptureNumber = 0;
+uint8_t EXTI14_bit =0;
+uint8_t dist_warn_cnt=0;
+
 const char menu[] =
    "\n\r"
    "+******** SMART CAR ********+\n\r";	   //"\n"：在超级终端的作用是换行
@@ -121,6 +130,10 @@ int main(void)
 		wheel_cnt[1] = valueToHexCh((temp >> 8) & 0x0F);
 		wheel_cnt[0] = valueToHexCh((temp >> 12) & 0x0F);
 #endif
+
+		if (dist_warn_cnt > 2) {
+			Stop();
+		}
 	}
 }
 /*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -156,9 +169,9 @@ void Init_GPIO(void)
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;	//配置端口速度为50M
 	GPIO_Init(GPIOB, &GPIO_InitStructure);//将端口GPIOB进行初始化配置
 	
-	GPIO_InitStructure.GPIO_Pin = 0x0F;  //configure GPIO PF0/1/2/3
+	GPIO_InitStructure.GPIO_Pin = 0x400F;  //configure GPIO PF0/1/2/3/14
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;  //pull up input
-	GPIO_Init(GPIOF, &GPIO_InitStructure);  //PF0/1/2/3
+	GPIO_Init(GPIOF, &GPIO_InitStructure);  //PF0/1/2/3/14
 	
 	GPIO_EXTILineConfig(GPIO_PortSourceGPIOF, GPIO_PinSource0);
 	EXTI_InitStructure.EXTI_Line = EXTI_Line0;  
@@ -178,6 +191,12 @@ void Init_GPIO(void)
 	GPIO_EXTILineConfig(GPIO_PortSourceGPIOF, GPIO_PinSource3);
 	EXTI_InitStructure.EXTI_Line = EXTI_Line3;  
 	EXTI_Init(&EXTI_InitStructure);
+	
+	EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Rising_Falling;
+	GPIO_EXTILineConfig(GPIO_PortSourceGPIOF, GPIO_PinSource14);
+	EXTI_InitStructure.EXTI_Line = EXTI_Line14;  
+	EXTI_Init(&EXTI_InitStructure);
+	//EXTI_GenerateSWInterrupt(EXTI_Line14);
 }
 /*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 ** 函数名称: Init_NVIC
@@ -223,6 +242,10 @@ void Init_NVIC(void)
 	
 	NVIC_InitStructure.NVIC_IRQChannel = EXTI3_IRQn;			//配置EXTI3为中断源
 	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 2;		  	//设置副优先级为2
+	NVIC_Init(&NVIC_InitStructure);	 //根据参数初始化中断寄存器
+	
+	NVIC_InitStructure.NVIC_IRQChannel = EXTI15_10_IRQn;			//配置EXTI10~15为中断源
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;		  	//设置副优先级为0
 	NVIC_Init(&NVIC_InitStructure);	 //根据参数初始化中断寄存器
 }
 /*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -286,6 +309,36 @@ void EXTI3_IRQHandler(void)
    }
 }
 /*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+** 函数名称: EXTI15_10_IRQHandler
+** 功能描述: EXTI10~15中断响应,超声波反馈计时
+** 参数描述：无
+** 作  　者: Cary
+** 日　  期: 2016年1月23日
+:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::*/
+void EXTI15_10_IRQHandler(void)
+{
+	if (EXTI_GetITStatus(EXTI_Line14) != RESET) {
+		EXTI_ClearITPendingBit(EXTI_Line14);
+		CaptureNumber = PFin(14);	
+	 }
+	if (CaptureNumber == 1) {   //rigsing edge is coming
+		IC3ReadValue1 = TIM_GetCounter(TIM2);
+		EXTI14_bit = 1;
+	} else if (CaptureNumber == 0 && EXTI14_bit == 1) { //falling edge after rising edge
+		IC3ReadValue2 = TIM_GetCounter(TIM2);
+		if (IC3ReadValue2 > IC3ReadValue1) {
+			Capture3 = (IC3ReadValue2 - IC3ReadValue1); 
+		} else {
+			Capture3 = (65000 - IC3ReadValue1) + IC3ReadValue2;
+		}
+		if (Capture3 < 1160) {  //58us=1cm, 1160/58=20cm
+			dist_warn_cnt++;
+		}
+		EXTI14_bit = 0;
+	}
+}  
+
+/*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 ** 函数名称: TIMER_Init
 ** 功能描述: 定时器4初始化配置
 ** 参数描述：无
@@ -295,13 +348,9 @@ void EXTI3_IRQHandler(void)
 void Init_TIMER(void)
 {
 	TIM_TimeBaseInitTypeDef	 TIM_BaseInitStructure;	//定义一个定时器结构体变量
-
-	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM4, ENABLE);//使能定时器4
-
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2 | RCC_APB1Periph_TIM4, ENABLE);//使能定时器2,4
 	TIM_DeInit(TIM4);  //将TIM4定时器初始化位复位值
-
 	TIM_InternalClockConfig(TIM4); 	//配置TIM4内部时钟
-	   
 	TIM_BaseInitStructure.TIM_Period = 100-1; //设置自动重载寄存器值为最大值	0~65535之间  100/100K=1ms													
 												//TIM_Period（TIM4_ARR）=100，计数器向上计数到100后产生更新事件，
 												//计数值归零 也就是 1ms产生更新事件一次
@@ -309,11 +358,20 @@ void Init_TIMER(void)
 	TIM_BaseInitStructure.TIM_ClockDivision = TIM_CKD_DIV1; //时钟分割为0
 	TIM_BaseInitStructure.TIM_CounterMode = TIM_CounterMode_Up; //TIM向上计数模式 从0开始向上计数，
 																//计数到100后产生更新事件
-	TIM_TimeBaseInit(TIM4, &TIM_BaseInitStructure); //根据指定参数初始化TIM时间基数寄存器	
-      
+	TIM_TimeBaseInit(TIM4, &TIM_BaseInitStructure); //根据指定参数初始化TIM时间基数寄存器	  
  	TIM_ARRPreloadConfig(TIM4, ENABLE);	//使能TIMx在 ARR 上的预装载寄存器 
-
 	TIM_Cmd(TIM4, ENABLE); 	//TIM4总开关：开启 
+	
+	TIM_DeInit(TIM2);  //将TIM2定时器初始化位复位值
+	TIM_InternalClockConfig(TIM2); 	//配置TIM2内部时钟
+	TIM_BaseInitStructure.TIM_Period = 65000; //设置自动重载寄存器值为最大值，0~65535之间											
+	TIM_BaseInitStructure.TIM_Prescaler = 71;  	//预分频系数为72，定时器的时钟频率为72M/72=1M
+	TIM_BaseInitStructure.TIM_ClockDivision = TIM_CKD_DIV1; //时钟分割为0
+	TIM_BaseInitStructure.TIM_CounterMode = TIM_CounterMode_Up; //TIM向上计数模式 从0开始向上计数
+	TIM_TimeBaseInit(TIM2, &TIM_BaseInitStructure); //根据指定参数初始化TIM时间基数寄存器	
+ 	//TIM_ARRPreloadConfig(TIM2, ENABLE);	//使能TIMx在 ARR 上的预装载寄存器 
+	TIM_Cmd(TIM2, ENABLE); 	//TIM2总开关：开启 ;
+	TIM_ITConfig(TIM2,TIM_IT_Update, ENABLE);
 }
 /*:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 ** 函数名称: PWM_Init
